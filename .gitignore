@@ -149,6 +149,15 @@ activemq-data/
 
 # Environments
 .env
+import_data/
+.venv/
+node_modules/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+frontend/dist/
+postgres-data/
+pen-images/
 .envrc
 .venv
 env/
@@ -216,3 +225,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+Pen Collection - Pen Data.csv

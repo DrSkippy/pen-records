@@ -1,0 +1,22 @@
+services:
+  api:
+    image: ${PENS_REGISTRY:-localhost:5000}/pen-records-api:${PENS_IMAGE_TAG:-latest}
+    pull_policy: always
+    environment:
+      PENS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-pens}:${POSTGRES_PASSWORD}@host.docker.internal:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-pens}
+      PENS_IMAGE_DIR: /var/www/html/resources/pens
+      PENS_RESOURCE_BASE_URL: https://resources.drskippy.app/pens
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${PENS_IMAGE_HOST_DIR:-/var/www/html/resources/pens}:/var/www/html/resources/pens
+      - ./import_data:/app/import_data:ro
+    restart: unless-stopped
+  web:
+    image: ${PENS_REGISTRY:-localhost:5000}/pen-records-web:${PENS_IMAGE_TAG:-latest}
+    pull_policy: always
+    ports:
+      - "127.0.0.1:8070:8080"
+    depends_on:
+      - api
+    restart: unless-stopped

@@ -1,0 +1,7 @@
+.git
+.venv
+frontend
+import_data
+pen-images
+__pycache__
+*.pyc
