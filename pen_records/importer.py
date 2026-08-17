@@ -1,5 +1,6 @@
 import csv
 import hashlib
+import re
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -23,6 +24,19 @@ def parse_price(value: str) -> Decimal:
 def normalize_size(value: str) -> str | None:
     value = value.strip()
     return None if not value or value == "-" else value
+
+
+LINE_WIDTH_PATTERN = re.compile(r"(?<![A-Za-z0-9])(EF|MF|BB|F|M|B)(?![A-Za-z0-9])", re.IGNORECASE)
+
+def normalize_nib_description(value: str) -> tuple[str | None, str | None]:
+    description = " ".join(value.split())
+    if description.casefold() == "nemosyne 0.6 italic":
+        return "Nemosyne", "MF"
+    match = LINE_WIDTH_PATTERN.search(description)
+    if not match:
+        return description or None, None
+    cleaned = (description[: match.start()] + description[match.end() :]).strip(" -")
+    return " ".join(cleaned.split()) or None, match.group(1).upper()
 
 
 def drive_download_url(url: str) -> str:
@@ -128,21 +142,25 @@ def import_csv(session: Session, path: Path, download_images: bool = True) -> di
                     legacy_import_key=fingerprint,
                     import_payload=row,
                 )
+                original_description, original_line_width = normalize_nib_description(row["Original Nib"])
                 original = Nib(
                     pen=pen,
-                    description=row["Original Nib"].strip(),
+                    description=original_description,
                     material=material(session, row["Orig Nib Material"]),
-                    size=normalize_size(row["Nib Size"]),
+                    nib_size=normalize_size(row["Nib Size"]),
+                    line_width=original_line_width,
                     is_original=True,
                 )
                 current_desc = row["Current Nib"].strip()
                 if current_desc:
                     NibInstallation(pen=pen, nib=original, installed_on=pen.acquired_on, is_current=False)
+                    current_description, current_line_width = normalize_nib_description(current_desc)
                     alternate = Nib(
                         pen=pen,
-                        description=current_desc,
+                        description=current_description,
                         material=material(session, row["Curr Nib Material"]),
-                        size=normalize_size(row["Nib Size"]),
+                        nib_size=normalize_size(row["Nib Size"]),
+                        line_width=current_line_width,
                         is_original=False,
                     )
                     NibInstallation(pen=pen, nib=alternate, installed_on=None, is_current=True)

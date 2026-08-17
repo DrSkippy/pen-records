@@ -78,9 +78,10 @@ class Nib(TimestampMixin, Base):
     __tablename__ = "nibs"
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     pen_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("pens.id", ondelete="CASCADE"))
-    description: Mapped[str] = mapped_column(String(240))
+    description: Mapped[str | None] = mapped_column(String(240))
     material_id: Mapped[int] = mapped_column(ForeignKey("nib_materials.id"))
-    size: Mapped[str | None] = mapped_column(String(40))
+    nib_size: Mapped[str | None] = mapped_column(String(40))
+    line_width: Mapped[str | None] = mapped_column(String(40))
     is_original: Mapped[bool] = mapped_column(Boolean, default=False)
     pen: Mapped[Pen] = relationship(back_populates="nibs")
     material: Mapped[NibMaterial] = relationship(lazy="joined")

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .database import get_db
 from .models import Maker, Nib, NibInstallation, NibMaterial, Pen, PenImage, PenNote, Source
-from .schemas import InstallInput, NibInput, NoteInput, PenCreate, PenUpdate
+from .schemas import InstallInput, NibInput, NibUpdate, NoteInput, NoteUpdate, PenCreate, PenUpdate
 from .services import delete_image_files, image_urls, maker, material, save_image, source
 
 router = APIRouter(prefix="/api/v1")
@@ -57,7 +57,8 @@ def pen_dict(pen: Pen) -> dict:
                 "id": nib.id,
                 "description": nib.description,
                 "material": {"id": nib.material.id, "name": nib.material.name},
-                "size": nib.size,
+                "nib_size": nib.nib_size,
+                "line_width": nib.line_width,
                 "is_original": nib.is_original,
             }
             for nib in pen.nibs
@@ -144,9 +145,10 @@ def create_pen(payload: PenCreate, db: Session = Depends(get_db)):
         purchase_price=payload.purchase_price,
     )
     nib = Nib(
-        description=payload.original_nib.description.strip(),
+        description=(payload.original_nib.description or "").strip() or None,
         material=material(db, payload.original_nib.material),
-        size=payload.original_nib.size,
+        nib_size=payload.original_nib.nib_size,
+        line_width=payload.original_nib.line_width,
         is_original=True,
         pen=pen,
     )
@@ -196,9 +198,10 @@ def add_nib(pen_id: uuid.UUID, payload: NibInput, db: Session = Depends(get_db))
     pen = get_pen(db, pen_id)
     nib = Nib(
         pen=pen,
-        description=payload.description.strip(),
+        description=(payload.description or "").strip() or None,
         material=material(db, payload.material),
-        size=payload.size,
+        nib_size=payload.nib_size,
+        line_width=payload.line_width,
         is_original=False,
     )
     db.add(nib)
@@ -208,9 +211,26 @@ def add_nib(pen_id: uuid.UUID, payload: NibInput, db: Session = Depends(get_db))
         "id": nib.id,
         "description": nib.description,
         "material": nib.material,
-        "size": nib.size,
+        "nib_size": nib.nib_size,
+        "line_width": nib.line_width,
         "is_original": False,
     }
+
+@router.patch("/pens/{pen_id}/nibs/{nib_id}")
+def update_nib(pen_id: uuid.UUID, nib_id: uuid.UUID, payload: NibUpdate, db: Session = Depends(get_db)):
+    pen = get_pen(db, pen_id)
+    nib = next((item for item in pen.nibs if item.id == nib_id), None)
+    if not nib:
+        raise HTTPException(404, "Nib not found on this pen")
+    changes = payload.model_dump(exclude_unset=True)
+    if "material" in changes:
+        nib.material = material(db, changes.pop("material"))
+    if "description" in changes:
+        changes["description"] = (changes["description"] or "").strip() or None
+    for key, value in changes.items():
+        setattr(nib, key, value)
+    db.commit()
+    return next(item for item in pen_dict(get_pen(db, pen_id))["nibs"] if item["id"] == nib_id)
 
 
 @router.post("/pens/{pen_id}/nibs/{nib_id}/install", status_code=201)
@@ -236,6 +256,18 @@ def install_nib(pen_id: uuid.UUID, nib_id: uuid.UUID, payload: InstallInput, db:
 def add_note(pen_id: uuid.UUID, payload: NoteInput, db: Session = Depends(get_db)):
     note = PenNote(pen=get_pen(db, pen_id), **payload.model_dump())
     db.add(note)
+    db.commit()
+    db.refresh(note)
+    return note
+
+@router.patch("/pens/{pen_id}/notes/{note_id}")
+def update_note(pen_id: uuid.UUID, note_id: uuid.UUID, payload: NoteUpdate, db: Session = Depends(get_db)):
+    get_pen(db, pen_id)
+    note = db.scalar(select(PenNote).where(PenNote.id == note_id, PenNote.pen_id == pen_id))
+    if not note:
+        raise HTTPException(404, "Note not found")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(note, key, value)
     db.commit()
     db.refresh(note)
     return note
@@ -326,9 +358,9 @@ def reports(include_disposed: bool = False, db: Session = Depends(get_db)):
         "SELECT p.id, p.acquired_on, p.purchase_price price, m.name maker, p.model FROM pens p JOIN makers m ON m.id=p.maker_id WHERE true /*status*/ ORDER BY p.acquired_on",
         include_disposed,
     )
-    pivot = report_rows(
+    nib_spend = report_rows(
         db,
-        "SELECT n.description, nm.name material, sum(p.purchase_price) total FROM pens p JOIN nibs n ON n.pen_id=p.id AND n.is_original JOIN nib_materials nm ON nm.id=n.material_id WHERE true /*status*/ GROUP BY n.description,nm.name ORDER BY n.description,nm.name",
+        "SELECT coalesce(n.line_width, 'Unknown') line_width, nm.name material, sum(p.purchase_price) total FROM pens p JOIN nibs n ON n.pen_id=p.id AND n.is_original JOIN nib_materials nm ON nm.id=n.material_id WHERE true /*status*/ GROUP BY coalesce(n.line_width, 'Unknown'),nm.name ORDER BY line_width,nm.name",
         include_disposed,
     )
     return {
@@ -337,5 +369,5 @@ def reports(include_disposed: bool = False, db: Session = Depends(get_db)):
         "materials": material_rows,
         "quarterly": quarterly,
         "scatter": scatter,
-        "pivot": pivot,
+        "nib_spend": nib_spend,
     }

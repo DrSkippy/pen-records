@@ -9,7 +9,7 @@ PEN = {
     "source": "Local shop",
     "acquired_on": "2024-02-03",
     "purchase_price": "250.00",
-    "original_nib": {"description": "Pilot F", "material": "14k gold", "size": "#15"},
+    "original_nib": {"description": "Pilot", "material": "14k gold", "nib_size": "#15", "line_width": "F"},
 }
 
 
@@ -27,6 +27,8 @@ def test_root_health_lookups_and_pen_crud(client):
     pen_id = pen["id"]
     assert pen["maker"]["name"] == "Pilot"
     assert pen["nibs"][0]["material"]["name"] == "14K Gold"
+    assert pen["nibs"][0]["nib_size"] == "#15"
+    assert pen["nibs"][0]["line_width"] == "F"
     assert pen["installations"][0]["is_current"] is True
 
     detail = client.get(f"/api/v1/pens/{pen_id}")
@@ -70,10 +72,15 @@ def test_nibs_installations_and_notes(client):
     pen = create_pen(client)
     pen_id = pen["id"]
     added = client.post(
-        f"/api/v1/pens/{pen_id}/nibs", json={"description": "Bock M", "material": "Steel", "size": "#6"}
+        f"/api/v1/pens/{pen_id}/nibs", json={"description": "Bock", "material": "Steel", "nib_size": "#6", "line_width": "M"}
     )
     assert added.status_code == 201
     nib_id = added.json()["id"]
+    edited = client.patch(f"/api/v1/pens/{pen_id}/nibs/{nib_id}", json={"description": "Bock tuned", "material": "Titanium", "nib_size": "#8", "line_width": "F"})
+    assert edited.status_code == 200
+    assert edited.json()["description"] == "Bock tuned"
+    assert edited.json()["material"]["name"] == "Titanium"
+    assert edited.json()["nib_size"] == "#8" and edited.json()["line_width"] == "F"
     installed = client.post(
         f"/api/v1/pens/{pen_id}/nibs/{nib_id}/install",
         json={"installed_on": "2025-03-04", "previous_removed_on": "2025-03-03"},
@@ -89,6 +96,9 @@ def test_nibs_installations_and_notes(client):
     note = client.post(f"/api/v1/pens/{pen_id}/notes", json={"text": "Tuned", "event_on": "2025-03-04"})
     assert note.status_code == 201
     note_id = note.json()["id"]
+    edited_note = client.patch(f"/api/v1/pens/{pen_id}/notes/{note_id}", json={"text": "Tuned twice", "event_on": None})
+    assert edited_note.status_code == 200
+    assert edited_note.json()["text"] == "Tuned twice" and edited_note.json()["event_on"] is None
     assert client.delete(f"/api/v1/pens/{pen_id}/notes/{note_id}").status_code == 204
     assert client.delete(f"/api/v1/pens/{pen_id}/notes/{note_id}").status_code == 404
 
@@ -121,12 +131,13 @@ def test_report_endpoint_and_report_rows(client, session):
             [{"name": "14K Gold", "count": 2, "total": 400, "average": 200}],
             [{"quarter": "2024-Q1", "count": 2, "total": 400}],
             [{"id": "x", "acquired_on": date(2024, 2, 3), "price": 250, "maker": "Pilot", "model": "Custom 823"}],
-            [{"description": "Pilot F", "material": "14K Gold", "total": 400}],
+            [{"line_width": "F", "material": "14K Gold", "total": 400}],
         ],
     ):
         response = client.get("/api/v1/reports")
     assert response.status_code == 200
     assert response.json()["summary"]["count"] == 2
+    assert response.json()["nib_spend"] == [{"line_width": "F", "material": "14K Gold", "total": 400}]
     rows = api.report_rows(session, "SELECT model FROM pens p WHERE true /*status*/", True)
     assert len(rows) == 2
     rows = api.report_rows(session, "SELECT model FROM pens p WHERE true /*status*/", False)
@@ -134,7 +145,12 @@ def test_report_endpoint_and_report_rows(client, session):
 
 
 def test_validation_and_missing_records(client):
+    custom = create_pen(client, model="Custom width", original_nib={"description": None, "material": "Steel", "nib_size": "#7", "line_width": "0.7 Stub"})
+    assert custom["nibs"][0] | {"description": None, "nib_size": "#7", "line_width": "0.7 Stub"} == custom["nibs"][0]
     invalid = PEN | {"disposed_on": "2020-01-01"}
     assert client.post("/api/v1/pens", json=invalid).status_code == 422
     missing = "00000000-0000-0000-0000-000000000000"
+    existing = create_pen(client, model="Endpoint ownership")
+    assert client.patch(f"/api/v1/pens/{existing['id']}/nibs/{missing}", json={"line_width": "BB"}).status_code == 404
+    assert client.patch(f"/api/v1/pens/{existing['id']}/notes/{missing}", json={"text": "Missing"}).status_code == 404
     assert client.get(f"/api/v1/pens/{missing}").status_code == 404

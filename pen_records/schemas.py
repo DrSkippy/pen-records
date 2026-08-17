@@ -16,9 +16,10 @@ class Lookup(ORMModel):
 
 class NibOut(ORMModel):
     id: uuid.UUID
-    description: str
+    description: str | None
     material: Lookup
-    size: str | None
+    nib_size: str | None
+    line_width: str | None
     is_original: bool
 
 
@@ -64,11 +65,18 @@ class PenOut(ORMModel):
 
 
 class NibInput(BaseModel):
-    description: str = Field(min_length=1, max_length=240)
+    description: str | None = Field(default=None, max_length=240)
     material: str = Field(min_length=1, max_length=80)
-    size: str | None = Field(default=None, max_length=40)
+    nib_size: str | None = Field(default=None, max_length=40)
+    line_width: str | None = Field(default=None, max_length=40)
     installed_on: date | None = None
 
+
+class NibUpdate(BaseModel):
+    description: str | None = Field(default=None, max_length=240)
+    material: str | None = Field(default=None, min_length=1, max_length=80)
+    nib_size: str | None = Field(default=None, max_length=40)
+    line_width: str | None = Field(default=None, max_length=40)
 
 class PenCreate(BaseModel):
     model: str = Field(min_length=1, max_length=240)
@@ -104,6 +112,10 @@ class NoteInput(BaseModel):
     text: str = Field(min_length=1)
     event_on: date | None = None
 
+
+class NoteUpdate(BaseModel):
+    text: str | None = Field(default=None, min_length=1)
+    event_on: date | None = None
 
 class InstallInput(BaseModel):
     installed_on: date | None = None
