@@ -1,5 +1,5 @@
 import {useEffect,useState} from 'react'
-import {Box} from '@mui/material'
+import {Box,ButtonBase} from '@mui/material'
 
 const PAPER='#F1ECE3'
 const suggestions=new Map<string,Promise<string>>()
@@ -33,11 +33,14 @@ export function suggestBackground(src:string){
   return suggestions.get(src)!
 }
 
-// Always fills the frame width: taller photos are cropped vertically, wider ones are padded above and below
-export function FramedPhoto({src,sampleSrc,alt,ratio,className}:{src:string;sampleSrc?:string;alt:string;ratio:number;className?:string}){
-  const [fit,setFit]=useState<'cover'|'contain'>('cover'),[background,setBackground]=useState(PAPER)
+// Always fills the frame width: wider photos are padded above and below; with minRatio the frame grows to show taller
+// photos whole down to that ratio, and only photos taller than that are cropped vertically
+export function FramedPhoto({src,sampleSrc,alt,ratio,minRatio,onOpen,className}:{src:string;sampleSrc?:string;alt:string;ratio:number;minRatio?:number;onOpen?:()=>void;className?:string}){
+  const [photoRatio,setPhotoRatio]=useState<number|null>(null),[background,setBackground]=useState(PAPER)
+  const frameRatio=photoRatio===null||minRatio===undefined?ratio:Math.min(ratio,Math.max(minRatio,photoRatio)),fit=photoRatio!==null&&photoRatio>frameRatio?'contain':'cover'
   useEffect(()=>{if(fit!=='contain')return;let live=true;suggestBackground(sampleSrc??src).then(value=>{if(live)setBackground(value)});return()=>{live=false}},[fit,src,sampleSrc])
-  return <Box className={['framed-photo',className].filter(Boolean).join(' ')} sx={{aspectRatio:String(ratio),background}}>
-    <img src={src} alt={alt} style={{objectFit:fit}} onLoad={e=>{const i=e.currentTarget;setFit(i.naturalWidth/i.naturalHeight>ratio?'contain':'cover')}}/>
+  const frame=<Box className={['framed-photo',className].filter(Boolean).join(' ')} sx={{aspectRatio:String(frameRatio),background}}>
+    <img src={src} alt={alt} style={{objectFit:fit}} onLoad={e=>{const i=e.currentTarget;setPhotoRatio(i.naturalWidth/i.naturalHeight)}}/>
   </Box>
+  return onOpen?<ButtonBase className="framed-photo-open" focusRipple onClick={onOpen} aria-label={`Enlarge ${alt}`}>{frame}</ButtonBase>:frame
 }
