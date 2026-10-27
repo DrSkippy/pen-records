@@ -1,5 +1,6 @@
 import {Box,Card,CardActionArea,CardContent,Chip,Stack,Typography} from '@mui/material'
 import {FountainPenIcon} from './icons'
+import {FramedPhoto} from './FramedPhoto'
 import type {Nib,Pen} from './types'
 
 const prettyDate=(value:string|null)=>value?new Date(`${value}T12:00:00`).toLocaleDateString():''
@@ -18,7 +19,7 @@ export function PenCard({pen,onOpen}:{pen:Pen;onOpen:()=>void}){
   const nib=pen.nibs.find(item=>item.id===installation?.nib_id)??pen.nibs.find(item=>item.is_original)
   const image=pen.images[0]
   return <Card className="pen-card" variant="outlined"><CardActionArea onClick={onOpen} className="pen-card-action">
-    {image?<img className="pen-card-image" src={image.thumbnail_url} alt={image.caption||`${pen.maker.name} ${pen.model}`}/>:<Box className="pen-card-image pen-image-placeholder"><FountainPenIcon fontSize="large"/></Box>}
+    {image?<FramedPhoto key={image.id} className="pen-card-photo" src={image.thumbnail_url} alt={image.caption||`${pen.maker.name} ${pen.model}`} ratio={16/6}/>:<Box className="pen-card-image pen-image-placeholder"><FountainPenIcon fontSize="large"/></Box>}
     <CardContent className="pen-card-content"><Typography className="pen-card-maker" variant="overline" component="p">{pen.maker.name}</Typography><Typography className="pen-card-model" variant="h6" component="h2">{pen.model}</Typography><Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center" sx={{mt:1.25}}><NibChip nib={nib}/>{nib?.description&&<Typography variant="body2" color="text.secondary">{nib.description}</Typography>}{pen.disposed_on&&<Chip size="small" variant="outlined" label={`Disposed ${prettyDate(pen.disposed_on)}`}/>}</Stack></CardContent>
   </CardActionArea></Card>
 }

@@ -6,6 +6,7 @@ import {Bar,BarChart as RBarChart,CartesianGrid,ComposedChart,Legend,Line,Respon
 import {api} from './api'
 import {FountainPenIcon} from './icons'
 import {ImageGallery} from './ImageGallery'
+import {FramedPhoto} from './FramedPhoto'
 import {NibChip,PenCard} from './PenCard'
 import type {Nib,Note,Pen,Report} from './types'
 
@@ -67,8 +68,8 @@ function PenDetail({id,back}:{id:string;back:()=>void}){
   if(!query.data)return query.error?<Alert severity="error">{(query.error as Error).message}</Alert>:<Typography>Loading…</Typography>
   const pen=query.data,current=pen.installations.find(i=>i.is_current),currentNib=pen.nibs.find(n=>n.id===current?.nib_id),lead=pen.images[0]
   return <><Button startIcon={<ArrowBack/>} onClick={back}>Collection</Button>
-    <Grid container spacing={{xs:3,md:5}} alignItems="center" className="hero"><Grid size={{xs:12,md:7}}>{lead?<img className="detail-image" src={lead.url} alt={lead.caption||`${pen.maker.name} ${pen.model}`}/>:<Box className="detail-image pen-image-placeholder"><FountainPenIcon fontSize="large"/></Box>}</Grid>
-      <Grid size={{xs:12,md:5}}><Typography variant="overline" component="p">{pen.maker.name}</Typography><Typography variant="h3" component="h1" sx={{fontSize:{xs:'2rem',md:'2.6rem'},mb:3}}>{pen.model}</Typography>
+    <Grid container spacing={{xs:3,md:4}} className="hero"><Grid size={12}>{lead?<FramedPhoto key={lead.id} className="detail-image" src={lead.url} sampleSrc={lead.thumbnail_url} alt={lead.caption||`${pen.maker.name} ${pen.model}`} ratio={16/7}/>:<Box className="detail-image pen-image-placeholder"><FountainPenIcon fontSize="large"/></Box>}</Grid>
+      <Grid size={12}><Typography variant="overline" component="p">{pen.maker.name}</Typography><Typography variant="h3" component="h1" sx={{fontSize:{xs:'2rem',md:'2.6rem'},mb:3}}>{pen.model}</Typography>
         <Box component="dl" className="facts"><dt>Price</dt><dd>{money(pen.purchase_price)}</dd><dt>Acquired</dt><dd>{prettyDate(pen.acquired_on)}{pen.acquired_on_approximate&&' (approx.)'}</dd>{pen.disposed_on&&<><dt>Disposed</dt><dd>{prettyDate(pen.disposed_on)}{pen.disposed_on_approximate&&' (approx.)'}</dd></>}<dt>Source</dt><dd>{pen.source?.name||'Not recorded'}</dd><dt>Nib</dt><dd>{currentNib?<Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center"><NibChip nib={currentNib}/>{currentNib.description&&<span>{currentNib.description}</span>}</Stack>:'None installed'}</dd></Box>
         <Button variant="outlined" startIcon={<Edit/>} onClick={()=>setEditingPen(true)} sx={{mt:3}}>Edit pen</Button></Grid></Grid>
     <Section title="Nibs" count={pen.nibs.length} addLabel="Add nib" onAdd={()=>setNibDialog('new')}><Stack spacing={1.5}>{pen.nibs.map(n=><Card key={n.id} variant="outlined"><CardContent><Stack direction={{xs:'column',sm:'row'}} justifyContent="space-between" alignItems={{sm:'center'}} spacing={1.5}><Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center"><NibChip nib={n}/>{n.description&&<Typography>{n.description}</Typography>}{n.is_original&&<Chip size="small" variant="outlined" label="Original"/>}</Stack><Stack direction="row" spacing={1} alignItems="center">{n.id===current?.nib_id?<Chip size="small" color="secondary" label="Installed"/>:<Button size="small" startIcon={<SwapHoriz/>} onClick={async()=>{await api.installNib(id,n.id,{installed_on:new Date().toISOString().slice(0,10)});refresh()}}>Install</Button>}<IconButton size="small" aria-label="Edit nib" onClick={()=>setNibDialog(n)}><Edit fontSize="small"/></IconButton></Stack></Stack></CardContent></Card>)}</Stack></Section>
